@@ -19,7 +19,8 @@ type PostsRepository interface {
 type Posts struct{}
 
 func getFirebasePostsClient(ctx context.Context) (*firestore.Client, error) {
-	opt := option.WithCredentialsFile(globals.ServiceAccountKeyPath)
+	// opt := option.WithCredentialsFile(globals.ServiceAccountKeyPath)
+    opt := option.WithCredentialsJSON([]byte(globals.ServiceAccountKey))
 	client, err := firestore.NewClient(ctx, globals.ProjectId, opt)
 	if err != nil {
 		log.Fatalf("Failed to create client: %v", err)

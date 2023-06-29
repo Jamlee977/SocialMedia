@@ -20,7 +20,7 @@ type AccountRepository interface {
 type Account struct{}
 
 func getFirebaseUserClient(ctx context.Context) (*firestore.Client, error) {
-	opt := option.WithCredentialsFile(globals.ServiceAccountKeyPath)
+    opt := option.WithCredentialsJSON([]byte(globals.ServiceAccountKey))
 	client, err := firestore.NewClient(ctx, globals.ProjectId, opt)
 	if err != nil {
 		log.Fatalf("Failed to create client: %v", err)
