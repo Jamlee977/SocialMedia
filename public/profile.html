@@ -5,17 +5,17 @@
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <meta http-equiv="X-UA-Compatible" content="ie=edge">
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/4.3.1/css/bootstrap.min.css">
+        <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.7.2/css/all.css">
         <script src="/public/profile.js" defer></script>
         <title>Profile</title>
     </head>
     <body>
-        <!-------------------------------NAvigation Starts------------------>
         <nav class="navbar navbar-expand-md navbar-dark" style="background-color:#3097D1">
             <button class="navbar-toggler" data-toggle="collapse" data-target="#responsive"><span class="navbar-toggler-icon"></span></button>
             <div class="collapse navbar-collapse" id="responsive">
                 <ul class="navbar-nav mr-auto text-capitalize">
-                    <li class="nav-item"><a href="/media" class="nav-link active">home</a></li>
-                    <li class="nav-item"><a href="#" class="nav-link">profile</a></li>
+                    <li class="nav-item"><a href="/media" class="nav-link">home</a></li>
+                    <li class="nav-item"><a href="/profile/{{.Me}}" class="nav-link active">profile</a></li>
                     <li class="nav-item"><a href="#modalview" data-toggle="modal" class="nav-link">messages</a></li>
                     <li class="nav-item"><a href="notification.html" class="nav-link">docs</a></li>
                     <li class="nav-item"><a href="#" class="nav-link d-md-none">growl</a></li>
@@ -26,6 +26,8 @@
                     <input type="text" name="search" id="search" placeholder="Search" class="form-control form-control-sm">
                 </form>
                 <a href="notification.html" class="text-decoration-none" style="color:#CBE4F2;font-size:22px;"><i class="far fa-bell ml-3 d-none d-md-block"></i></a> 
+
+                <a id="logout_link" href="/api/logout" class="text-decoration-none" style="color:#CBE4F2;font-size:22px;"><i class="fas fa-sign-out-alt ml-3 d-none d-md-block"></i></a>
             </div>
         </nav>
         <!---------------------------------------------Ends navigation------------------------------>

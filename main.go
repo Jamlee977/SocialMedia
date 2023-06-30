@@ -27,7 +27,7 @@ func main() {
 
 	router.HandleFunc("/api/posts", routes.GetPosts).Methods("GET")
 
-    router.HandleFunc("/api/profile-details", routes.GetProfileDetails).Methods("GET")
+    router.HandleFunc("/api/profile-details", routes.GetProfileDetailsOnMediaPage).Methods("GET")
 
 	router.HandleFunc("/api/signup", routes.SignupAfterCheckingTheDatabase).Methods("POST")
 

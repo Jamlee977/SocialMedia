@@ -13,6 +13,7 @@ import (
 )
 
 type Username struct {
+    Me string
     Name string
 }
 
@@ -65,6 +66,7 @@ func ProfileHandler(w http.ResponseWriter, r *http.Request) {
     }
 
     username := Username{
+        Me: user.Id,
         Name: user.FirstName + " " + user.LastName,
     }
 

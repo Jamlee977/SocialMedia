@@ -45,7 +45,7 @@ func GetProfilePosts(w http.ResponseWriter, r *http.Request) {
     json.NewEncoder(w).Encode(posts)
 }
 
-func GetProfileDetails(w http.ResponseWriter, r *http.Request) {
+func GetProfileDetailsOnMediaPage(w http.ResponseWriter, r *http.Request) {
     var user profileDetails
 
     session, err := globals.LoginCookie.Get(r, "login")
@@ -121,14 +121,12 @@ func SignupAfterCheckingTheDatabase(w http.ResponseWriter, r *http.Request) {
 	confirmPassword := r.FormValue("confirm_password")
 
 	if user.Password != confirmPassword {
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte("Passwords do not match"))
-		return
+	    http.Redirect(w, r, "/signup", http.StatusBadRequest)
+        return
 	}
 
 	if len(user.Password) < 8 {
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte("Password must be longer than 8 characters"))
+        http.Redirect(w, r, "/signup", http.StatusBadRequest)
 		return
 	}
 
@@ -136,7 +134,7 @@ func SignupAfterCheckingTheDatabase(w http.ResponseWriter, r *http.Request) {
 
 	err = accountRepository.CreateAccount(&user)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+        http.Redirect(w, r, "/signup", http.StatusBadRequest)
 		return
 	}
 
@@ -156,24 +154,24 @@ func LoginAfterCheckingTheDatabase(w http.ResponseWriter, r *http.Request) {
 	var accountRepository firebase.AccountRepository = &firebase.Account{}
 	user, err := accountRepository.FindAccountByEmail(&email)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
+        http.Redirect(w, r, "/login", http.StatusBadRequest)
+        return
 	}
 
 	if user == nil {
-		http.Error(w, "User not found", http.StatusUnauthorized)
+        http.Redirect(w, r, "/login", http.StatusUnauthorized)
 		return
 	}
 
 	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password))
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
+		http.Redirect(w, r, "/login", http.StatusBadRequest)
+        return
 	}
 
 	session, err := globals.LoginCookie.Get(r, "login")
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+        http.Redirect(w, r, "/login", http.StatusInternalServerError)
 		return
 	}
 
@@ -191,7 +189,7 @@ func LoginAfterCheckingTheDatabase(w http.ResponseWriter, r *http.Request) {
 
 	err = session.Save(r, w)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+        http.Redirect(w, r, "/login", http.StatusInternalServerError)
 		return
 	}
 
@@ -201,7 +199,7 @@ func LoginAfterCheckingTheDatabase(w http.ResponseWriter, r *http.Request) {
 func Logout(w http.ResponseWriter, r *http.Request) {
 	session, err := globals.LoginCookie.Get(r, "login")
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+        http.Redirect(w, r, "/login", http.StatusInternalServerError)
 		return
 	}
 
@@ -210,7 +208,7 @@ func Logout(w http.ResponseWriter, r *http.Request) {
 
 	err = session.Save(r, w)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+        http.Redirect(w, r, "/login", http.StatusInternalServerError)
 		return
 	}
 
