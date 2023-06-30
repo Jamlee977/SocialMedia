@@ -8,6 +8,7 @@ import (
 	"posts/models"
 
 	"cloud.google.com/go/firestore"
+	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/api/option"
 )
@@ -15,6 +16,7 @@ import (
 type AccountRepository interface {
 	CreateAccount(user *models.User) error
 	FindAccountByEmail(email *string) (*models.User, error)
+    FindAccountByUuid(id string) (*models.User, error)
 }
 
 type Account struct{}
@@ -56,7 +58,10 @@ func (*Account) CreateAccount(user *models.User) error {
 		return err
 	}
 
+    user.Id = uuid.New().String()
+
 	_, _, err = client.Collection(globals.UsersCollectionName).Add(ctx, map[string]string{
+        "Id":        user.Id,
 		"Email":     user.Email,
 		"Password":  string(hashedPassword),
 		"FirstName": user.FirstName,
@@ -97,4 +102,32 @@ func (*Account) FindAccountByEmail(email *string) (*models.User, error) {
 	}
 
 	return &user, nil
+}
+
+func (*Account) FindAccountByUuid(id string) (*models.User, error) {
+    ctx := context.Background()
+    client, err := getFirebaseUserClient(ctx)
+    if err != nil {
+        log.Fatalf("Failed to create client: %v", err)
+        return nil, err
+    }
+    defer client.Close()
+
+    query := client.Collection(globals.UsersCollectionName).Where("Id", "==", id).Limit(1)
+    docs, err := query.Documents(ctx).GetAll()
+    if err != nil {
+        log.Fatalf("Failed to get user: %v", err)
+        return nil, err
+    }
+    
+    if len(docs) == 0 {
+        return nil, fmt.Errorf("User not found")
+    }
+
+    var user models.User
+    for _, doc := range docs {
+        doc.DataTo(&user)
+    }
+
+    return &user, nil
 }

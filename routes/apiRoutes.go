@@ -6,10 +6,61 @@ import (
 	"posts/firebase"
 	"posts/globals"
 	"posts/models"
+	"strings"
 	"time"
 
+	"github.com/gorilla/mux"
 	"golang.org/x/crypto/bcrypt"
 )
+
+type profileDetails struct {
+    Name string `json:"name"`
+}
+
+func GetProfilePosts(w http.ResponseWriter, r *http.Request) {
+    var postsRepository firebase.PostsRepository = &firebase.Posts{}
+
+    vars := mux.Vars(r)
+    authorId := vars["userId"]
+
+    if strings.TrimSpace(authorId) == "" {
+        http.Redirect(w, r, "/media", http.StatusSeeOther)
+        return
+    }
+    
+    var account firebase.AccountRepository = &firebase.Account{}
+    user, err := account.FindAccountByUuid(authorId)
+    if err != nil {
+        http.Redirect(w, r, "/media", http.StatusSeeOther)
+        return
+    }
+
+    posts, err := postsRepository.GetPostByAuthorId(user.Id)
+    if err != nil {
+        http.Error(w, err.Error(), http.StatusBadRequest)
+        return
+    }
+
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(posts)
+}
+
+func GetProfileDetails(w http.ResponseWriter, r *http.Request) {
+    var user profileDetails
+
+    session, err := globals.LoginCookie.Get(r, "login")
+    if err != nil {
+        http.Error(w, err.Error(), http.StatusBadRequest)
+        return
+    }
+
+    firstName := session.Values["firstName"].(string)
+    lastName := session.Values["lastName"].(string)
+    user.Name = firstName + " " + lastName
+
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(user)
+}
 
 func AddPost(w http.ResponseWriter, r *http.Request) {
 	var post models.Post
@@ -29,8 +80,11 @@ func AddPost(w http.ResponseWriter, r *http.Request) {
 	lastName := session.Values["lastName"].(string)
 	post.Author = firstName + " " + lastName
 
+    userId := session.Values["id"].(string)
+    post.AuthorId = userId
+
 	var postsRepository firebase.PostsRepository = &firebase.Posts{}
-	err = postsRepository.AddPost(&post, post.Author)
+	err = postsRepository.AddPost(&post, post.Author, post.AuthorId)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -123,6 +177,7 @@ func LoginAfterCheckingTheDatabase(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+    session.Values["id"] = user.Id
 	session.Values["email"] = user.Email
 	session.Values["firstName"] = user.FirstName
 	session.Values["lastName"] = user.LastName
