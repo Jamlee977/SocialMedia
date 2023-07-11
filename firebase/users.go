@@ -7,13 +7,11 @@ import (
 	"posts/globals"
 	"posts/models"
 	"sync"
-	"time"
 
 	"cloud.google.com/go/firestore"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 
-	// "google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 )
 
@@ -275,93 +273,48 @@ func (*Account) RemoveFollower(followerId string, followingId string) error {
 }
 
 func (*Account) IsFollowing(firstUuid string, secondUuid string) (bool, error) {
-    return isFollowing(firstUuid, secondUuid)
+    ctx := context.Background()
+    client, err := getFirebaseUserClient(ctx)
+    if err != nil {
+        log.Fatalf("Failed to create client: %v", err)
+        return false, err
+    }
+    defer client.Close()
+
+    firstId, err := getDocumentIdByUuid(firstUuid)
+    if err != nil {
+        return false, err
+    }
+
+    secondId, err := getDocumentIdByUuid(secondUuid)
+    if err != nil {
+        return false, err
+    }
+
+    followingSnapshot, err := client.Collection(globals.UsersCollectionName).Doc(firstId).Get(ctx)
+    if err != nil {
+        log.Fatalf("Failed to get following: %v", err)
+        return false, err
+    }
+
+    var followingData struct {
+        Following []string
+    }
+    if err := followingSnapshot.DataTo(&followingData); err != nil {
+        log.Fatalf("Failed to parse following data: %v", err)
+        return false, err
+    }
+
+    for _, id := range followingData.Following {
+        if id == secondId {
+            return true, nil
+        }
+    }
+
+    return false, nil
 }
 
-type result struct {
-	index int
-	found bool
-}
 
-func isFollowing(firstUuid, secondUuid string) (bool, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-
-	client, err := getFirebaseUserClient(ctx)
-	if err != nil {
-		log.Fatalf("Failed to create client: %v", err)
-		return false, err
-	}
-	defer client.Close()
-
-	firstId, err := getDocumentIdByUuid(firstUuid)
-	if err != nil {
-		return false, err
-	}
-
-	secondId, err := getDocumentIdByUuid(secondUuid)
-	if err != nil {
-		return false, err
-	}
-
-	firstRef := client.Collection(globals.UsersCollectionName).Doc(firstId)
-	firstSnapshot, err := firstRef.Get(ctx)
-	if err != nil {
-		return false, err
-	}
-
-	var firstAccount models.User
-	if err := firstSnapshot.DataTo(&firstAccount); err != nil {
-		return false, err
-	}
-
-	followingRefs := make([]*firestore.DocumentRef, len(firstAccount.Following))
-	for i, following := range firstAccount.Following {
-		followingRefs[i] = client.Collection(globals.UsersCollectionName).Doc(following)
-	}
-	followingSnapshots, err := client.GetAll(ctx, followingRefs)
-	if err != nil {
-		return false, err
-	}
-
-	userCache := make(map[string]*models.User)
-	for _, snapshot := range followingSnapshots {
-		var user models.User
-		if err := snapshot.DataTo(&user); err != nil {
-			return false, err
-		}
-		userCache[snapshot.Ref.ID] = &user
-	}
-
-	resultChan := make(chan result, len(firstAccount.Following))
-
-	for i, following := range followingSnapshots {
-		go func(index int, snapshot *firestore.DocumentSnapshot) {
-			result := result{index: index}
-
-			if user, ok := userCache[snapshot.Ref.ID]; ok {
-				if user.Id == secondId {
-					result.found = true
-				}
-			}
-
-			resultChan <- result
-		}(i, following)
-	}
-
-	for i := 0; i < len(firstAccount.Following); i++ {
-		select {
-		case result := <-resultChan:
-			if result.found {
-				return true, nil
-			}
-		case <-ctx.Done():
-			return false, nil
-		}
-	}
-
-	return false, nil
-}
 
 func getDocumentIdByUuid(uuid string) (string, error) {
     ctx := context.Background()
