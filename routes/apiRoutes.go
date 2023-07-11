@@ -7,6 +7,7 @@ import (
 	"posts/globals"
 	"posts/models"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -20,47 +21,97 @@ type profileDetails struct {
 
 func FollowUser(w http.ResponseWriter, r *http.Request) {
     parts := strings.Split(r.URL.Path, "/")
-    userId := parts[3]
+    userId := parts[len(parts)-2]
     _, err := uuid.Parse(userId)
     if err != nil {
         http.Redirect(w, r, "/media", http.StatusNotFound)
         return
     }
 
-    var account firebase.AccountRepository = &firebase.Account{}
-    _, err = account.FindAccountByUuid(userId)
-    if err != nil {
+    var wg sync.WaitGroup
+    var followerDocumentId string
+    var userDocumentId string
+    var followerErr error
+    var userErr error
+
+    wg.Add(2)
+    go func() {
+        defer wg.Done()
+        var account firebase.AccountRepository = &firebase.Account{}
+        session, _ := globals.LoginCookie.Get(r, "login")
+        followerId := session.Values["id"].(string)
+        followerDocumentId, followerErr = account.GetDocumentIdByUuid(followerId)
+    }()
+    go func() {
+        defer wg.Done()
+        var account firebase.AccountRepository = &firebase.Account{}
+        userDocumentId, userErr = account.GetDocumentIdByUuid(userId)
+    }()
+    wg.Wait()
+
+    if followerErr != nil || userErr != nil {
         http.Redirect(w, r, "/media", http.StatusNotFound)
         return
     }
 
     session, _ := globals.LoginCookie.Get(r, "login")
-
-    if session.Values["uuid"] == userId {
+    if session.Values["id"] == userId {
         http.Redirect(w, r, "/media", http.StatusNotFound)
         return
     }
 
-    followerId := session.Values["id"].(string)
-    if err != nil {
-        http.Redirect(w, r, "/media", http.StatusNotFound)
-        return
-    }
-
-    followerDocumentId, err := account.GetDocumentIdByUuid(followerId)
-    if err != nil {
-        http.Redirect(w, r, "/media", http.StatusNotFound)
-        return
-    }
-
-    userDocumentId, err := account.GetDocumentIdByUuid(userId)
-    if err != nil {
-        http.Redirect(w, r, "/media", http.StatusNotFound)
-        return
-    }
-
+    var account firebase.AccountRepository = &firebase.Account{}
     account.AddFollower(followerDocumentId, userDocumentId)
-    
+
+    w.Header().Set("Content-Type", "application/json")
+    w.WriteHeader(http.StatusOK)
+    json.NewEncoder(w).Encode(map[string]string{"status": "success"})
+}
+
+func UnfollowUser(w http.ResponseWriter, r *http.Request) {
+    parts := strings.Split(r.URL.Path, "/")
+    userId := parts[len(parts)-2]
+    _, err := uuid.Parse(userId)
+    if err != nil {
+        http.Redirect(w, r, "/media", http.StatusNotFound)
+        return
+    }
+
+    var wg sync.WaitGroup
+    var userDocumentId string
+    var followerDocumentId string
+    var userErr error
+    var followerErr error
+
+    wg.Add(2)
+    go func() {
+        defer wg.Done()
+        var account firebase.AccountRepository = &firebase.Account{}
+        userDocumentId, userErr = account.GetDocumentIdByUuid(userId)
+    }()
+    go func() {
+        defer wg.Done()
+        session, _ := globals.LoginCookie.Get(r, "login")
+        followerId := session.Values["id"].(string)
+        var account firebase.AccountRepository = &firebase.Account{}
+        followerDocumentId, followerErr = account.GetDocumentIdByUuid(followerId)
+    }()
+    wg.Wait()
+
+    if userErr != nil || followerErr != nil {
+        http.Redirect(w, r, "/media", http.StatusNotFound)
+        return
+    }
+
+    session, _ := globals.LoginCookie.Get(r, "login")
+    if session.Values["id"] == userId {
+        http.Redirect(w, r, "/media", http.StatusNotFound)
+        return
+    }
+
+    var account firebase.AccountRepository = &firebase.Account{}
+    account.RemoveFollower(followerDocumentId, userDocumentId)
+
     w.Header().Set("Content-Type", "application/json")
     w.WriteHeader(http.StatusOK)
     json.NewEncoder(w).Encode(map[string]string{"status": "success"})

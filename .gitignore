@@ -1,2 +1,3 @@
 /globals/*.go
-/models/*.go
+makeForLinux.bat
+makeForWindows.bat

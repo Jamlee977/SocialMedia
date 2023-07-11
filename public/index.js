@@ -44,13 +44,6 @@ window.onload = async () => {
         },
     });
 
-    const response = await fetch("/api/posts", {
-        method: "GET",
-        headers: {
-            "Content-Type": "application/json"
-        },
-    });
-
     const profileDetailsData = await profileDetailsResponse.json();
 
     if (!profileDetailsResponse.ok) {
@@ -62,6 +55,13 @@ window.onload = async () => {
             <div class="profile_details_name">${profileDetailsData.name}</div>
         </div>
     `;
+
+    const response = await fetch("/api/posts", {
+        method: "GET",
+        headers: {
+            "Content-Type": "application/json"
+        },
+    });
 
     const data = await response.json();
 

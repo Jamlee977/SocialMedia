@@ -5,6 +5,7 @@ import (
 	"log"
 	"posts/globals"
 	"posts/models"
+	"sync"
 
 	"cloud.google.com/go/firestore"
 	"google.golang.org/api/iterator"
@@ -87,29 +88,39 @@ func (*Posts) GetPosts() ([]*models.Post, error) {
 
 func (*Posts) GetPostByAuthorId(id string) ([]models.Post, error) {
     ctx := context.Background()
-	client, err := getFirebasePostsClient(ctx)
-	if err != nil {
-		log.Fatalf("Failed to create client: %v", err)
-		return nil, err
-	}
-	defer client.Close()
+    client, err := getFirebasePostsClient(ctx)
+    if err != nil {
+        log.Fatalf("Failed to create client: %v", err)
+        return nil, err
+    }
+    defer client.Close()
 
-    var posts []models.Post
-    iter := client.Collection(globals.PostsCollectionName).Where("AuthorId", "==", id).Documents(ctx)
-	for {
-		doc, err := iter.Next()
-		if err == iterator.Done {
-			break
-		}
-		if err != nil {
-			log.Fatalf("Failed to iterate: %v", err)
-			return nil, err
-		}
+    query := client.Collection(globals.PostsCollectionName).Where("AuthorId", "==", id)
+    docs, err := query.Documents(ctx).GetAll()
+    if err != nil {
+        log.Fatalf("Failed to fetch documents: %v", err)
+        return nil, err
+    }
 
-		var post models.Post
-		doc.DataTo(&post)
-        posts = append(posts, post)
-	}
+    var (
+        posts     []models.Post
+        wg        sync.WaitGroup
+        postsLock sync.Mutex
+    )
 
-	return posts, nil
+    for _, doc := range docs {
+        wg.Add(1)
+        go func(d *firestore.DocumentSnapshot) {
+            defer wg.Done()
+            var post models.Post
+            d.DataTo(&post)
+            postsLock.Lock()
+            posts = append(posts, post)
+            postsLock.Unlock()
+        }(doc)
+    }
+
+    wg.Wait()
+
+    return posts, nil
 }

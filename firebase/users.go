@@ -6,11 +6,14 @@ import (
 	"log"
 	"posts/globals"
 	"posts/models"
+	"sync"
+	"time"
 
 	"cloud.google.com/go/firestore"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
-	"google.golang.org/api/iterator"
+
+	// "google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 )
 
@@ -19,6 +22,7 @@ type AccountRepository interface {
 	FindAccountByEmail(email *string) (*models.User, error)
     FindAccountByUuid(id string) (*models.User, error)
     AddFollower(followerId string, followingId string) error
+    RemoveFollower(followerId string, followingId string) error
     GetDocumentIdByUuid(uuid string) (string, error)
     IsFollowing(firstUuid string, secondUuid string) (bool, error)
 }
@@ -112,32 +116,39 @@ func (*Account) FindAccountByEmail(email *string) (*models.User, error) {
 	return &user, nil
 }
 
+var userCache = make(map[string]*models.User)
+
 func (*Account) FindAccountByUuid(id string) (*models.User, error) {
-    ctx := context.Background()
-    client, err := getFirebaseUserClient(ctx)
-    if err != nil {
-        log.Fatalf("Failed to create client: %v", err)
-        return nil, err
-    }
-    defer client.Close()
+	if user, ok := userCache[id]; ok {
+		return user, nil
+	}
 
-    query := client.Collection(globals.UsersCollectionName).Where("Id", "==", id).Limit(1)
-    docs, err := query.Documents(ctx).GetAll()
-    if err != nil {
-        log.Fatalf("Failed to get user: %v", err)
-        return nil, err
-    }
-    
-    if len(docs) == 0 {
-        return nil, fmt.Errorf("User not found")
-    }
+	ctx := context.Background()
+	client, err := getFirebaseUserClient(ctx)
+	if err != nil {
+		log.Fatalf("Failed to create client: %v", err)
+		return nil, err
+	}
+	defer client.Close()
 
-    var user models.User
-    for _, doc := range docs {
-        doc.DataTo(&user)
-    }
+	query := client.Collection(globals.UsersCollectionName).Where("Id", "==", id).Limit(1)
+	snapshots, err := query.Documents(ctx).GetAll()
+	if err != nil {
+		return nil, err
+	}
 
-    return &user, nil
+	if len(snapshots) == 0 {
+		return nil, fmt.Errorf("User not found")
+	}
+
+	var user models.User
+	if err := snapshots[0].DataTo(&user); err != nil {
+		return nil, err
+	}
+
+	userCache[id] = &user
+
+	return &user, nil
 }
 
 func (*Account) GetDocumentIdByUuid(uuid string) (string, error) {
@@ -150,29 +161,68 @@ func (*Account) GetDocumentIdByUuid(uuid string) (string, error) {
     defer client.Close()
 
     collection := client.Collection(globals.UsersCollectionName)
-    query := collection.Query
+    query := collection.Where("Id", "==", uuid).Limit(1)
 
-    documentIterator := query.Documents(ctx)
-    for {
-        doc, err := documentIterator.Next()
-        if err == iterator.Done {
-            break
-        }
-        if err != nil {
-            log.Fatalf("Failed to iterate: %v", err)
-            return "", err
-        }
-        var user models.User
-        doc.DataTo(&user)
-        if user.Id == uuid {
-            return doc.Ref.ID, nil
-        }
+    docs, err := query.Documents(ctx).GetAll()
+    if err != nil {
+        log.Fatalf("Failed to get user: %v", err)
+        return "", err
     }
 
-    return "", fmt.Errorf("User not found")
+    if len(docs) == 0 {
+        return "", fmt.Errorf("User not found")
+    }
+
+    return docs[0].Ref.ID, nil
 }
 
 func (*Account) AddFollower(followerId string, followingId string) error {
+    ctx := context.Background()
+    client, err := getFirebaseUserClient(ctx)
+    if err != nil {
+        return fmt.Errorf("failed to create client: %v", err)
+    }
+    defer client.Close()
+
+    followingRef := client.Collection(globals.UsersCollectionName).Doc(followingId)
+    followerRef := client.Collection(globals.UsersCollectionName).Doc(followerId)
+
+    var wg sync.WaitGroup
+    var updateErr error
+
+    wg.Add(2)
+    go func() {
+        defer wg.Done()
+        _, err := followingRef.Update(ctx, []firestore.Update{
+            {
+                Path:  "Followers",
+                Value: firestore.ArrayUnion(followerId),
+            },
+        })
+        if err != nil {
+            updateErr = fmt.Errorf("failed adding follower: %v", err)
+        }
+    }()
+
+    go func() {
+        defer wg.Done()
+        _, err := followerRef.Update(ctx, []firestore.Update{
+            {
+                Path:  "Following",
+                Value: firestore.ArrayUnion(followingId),
+            },
+        })
+        if err != nil {
+            updateErr = fmt.Errorf("failed adding following: %v", err)
+        }
+    }()
+
+    wg.Wait()
+
+    return updateErr
+}
+
+func (*Account) RemoveFollower(followerId string, followingId string) error {
     ctx := context.Background()
     client, err := getFirebaseUserClient(ctx)
     if err != nil {
@@ -182,78 +232,135 @@ func (*Account) AddFollower(followerId string, followingId string) error {
     defer client.Close()
 
     followingRef := client.Collection(globals.UsersCollectionName).Doc(followingId)
-    _, err = followingRef.Update(ctx, []firestore.Update{
-        {
-            Path:  "Followers",
-            Value: firestore.ArrayUnion(followerId),
-        },
-    })
-
-    if err != nil {
-        log.Fatalf("Failed adding follower: %v", err)
-        return err
-    }
-
     followerRef := client.Collection(globals.UsersCollectionName).Doc(followerId)
-    _, err = followerRef.Update(ctx, []firestore.Update{
-        {
-            Path:  "Following",
-            Value: firestore.ArrayUnion(followingId),
-        },
-    })
 
-    if err != nil {
-        log.Fatalf("Failed adding following: %v", err)
-        return err
-    }
+    var wg sync.WaitGroup
+    var updateErr error
 
-    return nil
+    wg.Add(2)
+
+    go func() {
+        defer wg.Done()
+        _, err := followingRef.Update(ctx, []firestore.Update{
+            {
+                Path:  "Followers",
+                Value: firestore.ArrayRemove(followerId),
+            },
+        })
+
+        if err != nil {
+            log.Fatalf("Failed removing follower: %v", err)
+            updateErr = err
+        }
+    }()
+
+    go func() {
+        defer wg.Done()
+        _, err := followerRef.Update(ctx, []firestore.Update{
+            {
+                Path:  "Following",
+                Value: firestore.ArrayRemove(followingId),
+            },
+        })
+
+        if err != nil {
+            log.Fatalf("Failed removing following: %v", err)
+            updateErr = err
+        }
+    }()
+
+    wg.Wait()
+
+    return updateErr
 }
 
 func (*Account) IsFollowing(firstUuid string, secondUuid string) (bool, error) {
-    ctx := context.Background()
-    client, err := getFirebaseUserClient(ctx)
-    if err != nil {
-        log.Fatalf("Failed to create client: %v", err)
-        return false, err
-    }
-    defer client.Close()
+    return isFollowing(firstUuid, secondUuid)
+}
 
-    firstId, err := getDocumentIdByUuid(firstUuid)
-    if err != nil {
-        log.Fatalf("Failed to get first id: %v", err)
-        return false, err
-    }
+type result struct {
+	index int
+	found bool
+}
 
-    secondId, err := getDocumentIdByUuid(secondUuid)
-    if err != nil {
-        log.Fatalf("Failed to get second id: %v", err)
-        return false, err
-    }
+func isFollowing(firstUuid, secondUuid string) (bool, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
 
-    firstRef := client.Collection(globals.UsersCollectionName).Doc(firstId)
+	client, err := getFirebaseUserClient(ctx)
+	if err != nil {
+		log.Fatalf("Failed to create client: %v", err)
+		return false, err
+	}
+	defer client.Close()
 
-    // is first following second
-    firstSnapshot, err := firstRef.Get(ctx)
-    if err != nil {
-        log.Fatalf("Failed to get first snapshot: %v", err)
-        return false, err
-    }
+	firstId, err := getDocumentIdByUuid(firstUuid)
+	if err != nil {
+		return false, err
+	}
 
-    var firstAccount models.User
-    err = firstSnapshot.DataTo(&firstAccount)
-    if err != nil {
-        log.Fatalf("Failed to get first account: %v", err)
-        return false, err
-    }
+	secondId, err := getDocumentIdByUuid(secondUuid)
+	if err != nil {
+		return false, err
+	}
 
-    for _, following := range firstAccount.Following {
-        if following == secondId {
-            return true, nil
-        }
-    }
+	firstRef := client.Collection(globals.UsersCollectionName).Doc(firstId)
+	firstSnapshot, err := firstRef.Get(ctx)
+	if err != nil {
+		return false, err
+	}
 
-    return false, nil
+	var firstAccount models.User
+	if err := firstSnapshot.DataTo(&firstAccount); err != nil {
+		return false, err
+	}
+
+	followingRefs := make([]*firestore.DocumentRef, len(firstAccount.Following))
+	for i, following := range firstAccount.Following {
+		followingRefs[i] = client.Collection(globals.UsersCollectionName).Doc(following)
+	}
+	followingSnapshots, err := client.GetAll(ctx, followingRefs)
+	if err != nil {
+		return false, err
+	}
+
+	userCache := make(map[string]*models.User)
+	for _, snapshot := range followingSnapshots {
+		var user models.User
+		if err := snapshot.DataTo(&user); err != nil {
+			return false, err
+		}
+		userCache[snapshot.Ref.ID] = &user
+	}
+
+	resultChan := make(chan result, len(firstAccount.Following))
+
+	for i, following := range followingSnapshots {
+		go func(index int, snapshot *firestore.DocumentSnapshot) {
+			result := result{index: index}
+
+			if user, ok := userCache[snapshot.Ref.ID]; ok {
+				if user.Id == secondId {
+					result.found = true
+				}
+			}
+
+			resultChan <- result
+		}(i, following)
+	}
+
+	for i := 0; i < len(firstAccount.Following); i++ {
+		select {
+		case result := <-resultChan:
+			if result.found {
+				return true, nil
+			}
+		case <-ctx.Done():
+			return false, nil
+		}
+	}
+
+	return false, nil
 }
 
 func getDocumentIdByUuid(uuid string) (string, error) {
@@ -265,23 +372,18 @@ func getDocumentIdByUuid(uuid string) (string, error) {
     }
     defer client.Close()
 
-    iter := client.Collection(globals.UsersCollectionName).Documents(ctx)
-    for {
-        doc, err := iter.Next()
-        if err == iterator.Done {
-            break
-        }
-        if err != nil {
-            log.Fatalf("Failed to iterate: %v", err)
-            return "", err
-        }
+    collection := client.Collection(globals.UsersCollectionName)
+    query := collection.Where("Id", "==", uuid).Limit(1)
 
-        var user models.User
-        doc.DataTo(&user)
-        if user.Id == uuid {
-            return doc.Ref.ID, nil
-        }
+    docs, err := query.Documents(ctx).GetAll()
+    if err != nil {
+        log.Fatalf("Failed to get user: %v", err)
+        return "", err
     }
 
-    return "", fmt.Errorf("User not found")
+    if len(docs) == 0 {
+        return "", fmt.Errorf("User not found")
+    }
+
+    return docs[0].Ref.ID, nil
 }
