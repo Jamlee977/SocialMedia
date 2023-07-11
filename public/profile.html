@@ -40,6 +40,15 @@
                     <div class="user-info">
                         <span class="user-name">{{.Name}}</span>
                     </div>
+                    <div class="ml-auto">
+                        {{if .IsMe}}
+                            <button id="edit_button" class="btn btn-primary btn-sm">Edit Profile</button>
+                        {{else if .IsFollowing}}
+                            <button id="unfollow_button" class="btn btn-danger btn-sm">Unfollow</button>
+                        {{else}}
+                            <button id="follow_button" class="btn btn-primary btn-sm">Follow</button>
+                        {{end}}
+                    </div>
                 </div>
             </div>
         </div>

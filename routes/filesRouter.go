@@ -15,6 +15,8 @@ import (
 type Username struct {
     Me string
     Name string
+    IsMe bool
+    IsFollowing bool
 }
 
 func ServeIndex(w http.ResponseWriter, r *http.Request) {
@@ -65,9 +67,30 @@ func ProfileHandler(w http.ResponseWriter, r *http.Request) {
         return
     }
 
+    isMe := false
+    session, _ := globals.LoginCookie.Get(r, "login")
+    id, ok := session.Values["id"].(string)
+    if ok && id == userId {
+        isMe = true
+    }
+
+    isFollowing := false
+    if isMe {
+        isFollowing = true
+    } else {
+        var account firebase.AccountRepository = &firebase.Account{}
+        isFollowing, err = account.IsFollowing(id, userId)
+        if err != nil {
+            log.Println(err)
+        }
+    }
+
+
     username := Username{
-        Me: user.Id,
+        Me: id,
         Name: user.FirstName + " " + user.LastName,
+        IsMe: isMe,
+        IsFollowing: isFollowing,
     }
 
     template := template.Must(template.ParseFiles(path.Join("public", "profile.html")))

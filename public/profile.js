@@ -1,4 +1,6 @@
 const userPosts = document.getElementById("user_posts");
+const followButton = document.getElementById("follow_button");
+const unfollowButton = document.getElementById("unfollow_button");
 
 window.onload = async () => {
     const url = window.location.href;
@@ -12,7 +14,6 @@ window.onload = async () => {
 
     const userPostsData = await userPosts.json();
 
-    console.log(userPostsData)
     if (!userPosts.ok) {
         return;
     }
@@ -48,3 +49,34 @@ function createPostElement(post) {
     userPosts.appendChild(postBody);
 }
 
+followButton?.addEventListener("click", async () => {
+    followButton.innerText = "Unfollow";
+    followButton.classList.remove("btn-primary");
+    followButton.classList.add("btn-danger");
+    followButton.id = "unfollow_button";
+
+    const url = window.location.href;
+    const userId = url.substring(url.lastIndexOf("/") + 1);
+    await fetch(`/api/users/${userId}/follow`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+        },
+    });
+});
+
+unfollowButton?.addEventListener("click", async () => {
+    unfollowButton.innerText = "Follow";
+    unfollowButton.classList.remove("btn-danger");
+    unfollowButton.classList.add("btn-primary");
+    unfollowButton.id = "follow_button";
+
+    // const url = window.location.href;
+    // const userId = url.substring(url.lastIndexOf("/") + 1);
+    // await fetch(`/api/users/${userId}/unfollow`, {
+    //     method: "POST",
+    //     headers: {
+    //         "Content-Type": "application/json",
+    //     },
+    // });
+});

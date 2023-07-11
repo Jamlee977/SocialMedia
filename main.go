@@ -33,6 +33,8 @@ func main() {
 
 	router.HandleFunc("/api/login", routes.LoginAfterCheckingTheDatabase).Methods("POST")
 
+    router.HandleFunc("/api/users/{userId}/follow", routes.FollowUser).Methods("POST")
+
 	router.HandleFunc("/api/logout", routes.Logout)
 
     router.HandleFunc("/api/posts/{userId}", routes.GetProfilePosts).Methods("GET")

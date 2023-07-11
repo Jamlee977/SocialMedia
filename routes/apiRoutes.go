@@ -9,12 +9,61 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"golang.org/x/crypto/bcrypt"
 )
 
 type profileDetails struct {
     Name string `json:"name"`
+}
+
+func FollowUser(w http.ResponseWriter, r *http.Request) {
+    parts := strings.Split(r.URL.Path, "/")
+    userId := parts[3]
+    _, err := uuid.Parse(userId)
+    if err != nil {
+        http.Redirect(w, r, "/media", http.StatusNotFound)
+        return
+    }
+
+    var account firebase.AccountRepository = &firebase.Account{}
+    _, err = account.FindAccountByUuid(userId)
+    if err != nil {
+        http.Redirect(w, r, "/media", http.StatusNotFound)
+        return
+    }
+
+    session, _ := globals.LoginCookie.Get(r, "login")
+
+    if session.Values["uuid"] == userId {
+        http.Redirect(w, r, "/media", http.StatusNotFound)
+        return
+    }
+
+    followerId := session.Values["id"].(string)
+    if err != nil {
+        http.Redirect(w, r, "/media", http.StatusNotFound)
+        return
+    }
+
+    followerDocumentId, err := account.GetDocumentIdByUuid(followerId)
+    if err != nil {
+        http.Redirect(w, r, "/media", http.StatusNotFound)
+        return
+    }
+
+    userDocumentId, err := account.GetDocumentIdByUuid(userId)
+    if err != nil {
+        http.Redirect(w, r, "/media", http.StatusNotFound)
+        return
+    }
+
+    account.AddFollower(followerDocumentId, userDocumentId)
+    
+    w.Header().Set("Content-Type", "application/json")
+    w.WriteHeader(http.StatusOK)
+    json.NewEncoder(w).Encode(map[string]string{"status": "success"})
 }
 
 func GetProfilePosts(w http.ResponseWriter, r *http.Request) {
