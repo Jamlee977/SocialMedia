@@ -50,9 +50,12 @@ window.onload = async () => {
         return;
     }
 
+
     profileDetails.innerHTML += `
         <div class="profile_details">
-            <div class="profile_details_name">${profileDetailsData.name}</div>
+            <div class="profile_details_name">
+                <a href="/profiles/${profileDetailsData.id}" style="text-decoration: none; color: black">${profileDetailsData.name}</a>
+            </div>
         </div>
     `;
 
@@ -89,7 +92,7 @@ function createPostElement(post) {
     const postAuthor = document.createElement("h5");
     postAuthor.classList.add("card-text");
     postAuthor.classList.add("text-right");
-    postAuthor.innerText = post.author;
+    postAuthor.innerHTML = `<a href="/profiles/${post.authorId}" style="text-decoration: none; color: black">${post.author}</a>`;
 
     const hr = document.createElement("hr");
 

@@ -21,7 +21,7 @@ func main() {
 
 	router.HandleFunc("/login", routes.LoginHandler)
 
-    router.HandleFunc("/profile/{id}", routes.ProfileHandler).Methods("GET")
+    router.HandleFunc("/profiles/{id}", routes.ProfileHandler).Methods("GET")
 
 	router.HandleFunc("/api/add-post", routes.AddPost).Methods("POST")
 

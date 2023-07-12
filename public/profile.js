@@ -38,7 +38,7 @@ function createPostElement(post) {
     const postAuthor = document.createElement("h5");
     postAuthor.classList.add("card-text");
     postAuthor.classList.add("text-right");
-    postAuthor.innerText = post.author;
+    postAuthor.innerHTML = `<a href="/profiles/${post.authorId}" style="text-decoration: none; color: black">${post.author}</a>`;
 
     const hr = document.createElement("hr");
 
@@ -78,6 +78,8 @@ async function followUser(elementButton) {
     elementButton.classList.add("btn-danger");
     elementButton.id = "unfollow_button";
 
+    followButton.disabled = true;
+
     const url = window.location.href;
     const userId = url.substring(url.lastIndexOf("/") + 1);
     await fetch(`/api/users/${userId}/follow`, {
@@ -86,6 +88,8 @@ async function followUser(elementButton) {
             "Content-Type": "application/json",
         },
     });
+
+    followButton.disabled = false;
 }
 
 async function removeFollow(elementButton) {
@@ -93,6 +97,8 @@ async function removeFollow(elementButton) {
     elementButton.classList.remove("btn-danger");
     elementButton.classList.add("btn-primary");
     elementButton.id = "follow_button";
+
+    elementButton.disabled = true;
 
     const url = window.location.href;
     const userId = url.substring(url.lastIndexOf("/") + 1);
@@ -102,4 +108,6 @@ async function removeFollow(elementButton) {
             "Content-Type": "application/json",
         },
     });
+
+    elementButton.disabled = false;
 }

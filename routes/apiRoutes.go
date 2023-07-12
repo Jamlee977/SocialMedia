@@ -17,6 +17,7 @@ import (
 
 type profileDetails struct {
     Name string `json:"name"`
+    Id string `json:"id"`
 }
 
 func FollowUser(w http.ResponseWriter, r *http.Request) {
@@ -157,6 +158,8 @@ func GetProfileDetailsOnMediaPage(w http.ResponseWriter, r *http.Request) {
     firstName := session.Values["firstName"].(string)
     lastName := session.Values["lastName"].(string)
     user.Name = firstName + " " + lastName
+    id := session.Values["id"].(string)
+    user.Id = id
 
     w.Header().Set("Content-Type", "application/json")
     json.NewEncoder(w).Encode(user)
@@ -201,7 +204,6 @@ func GetPosts(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(posts)
 }
