@@ -44,7 +44,7 @@ func (*Posts) AddPost(post *models.Post, author string, authorId string) error {
     post.AuthorId = authorId
 
 	_, _, err = client.Collection(globals.PostsCollectionName).Add(ctx, map[string]string{
-		"Author":  post.Author,
+        "Author": post.Author,
 		"Content": post.Content,
         "AuthorId": post.AuthorId,
 	})

@@ -23,6 +23,8 @@ func main() {
 
     router.HandleFunc("/profiles/{id}", routes.ProfileHandler).Methods("GET")
 
+    router.HandleFunc("/settings/edit-profile", routes.EditProfileHandler).Methods("GET")
+
 	router.HandleFunc("/api/add-post", routes.AddPost).Methods("POST")
 
 	router.HandleFunc("/api/posts", routes.GetPosts).Methods("GET")
@@ -40,6 +42,8 @@ func main() {
 	router.HandleFunc("/api/logout", routes.Logout)
 
     router.HandleFunc("/api/posts/{userId}", routes.GetProfilePosts).Methods("GET")
+
+    router.HandleFunc("/api/settings/edit-profile", routes.EditProfile).Methods("POST")
 
 	fmt.Println("Server listening on port 8000")
 	http.ListenAndServe(":8000", router)

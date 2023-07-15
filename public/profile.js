@@ -1,6 +1,7 @@
 const userPosts = document.getElementById("user_posts");
 const followButton = document.getElementById("follow_button");
 const unfollowButton = document.getElementById("unfollow_button");
+const editButton = document.getElementById("edit_button");
 
 window.onload = async () => {
     const url = window.location.href;
@@ -71,6 +72,18 @@ unfollowButton?.addEventListener("click", async () => {
     }
 });
 
+editButton?.addEventListener("click", async () => {
+    const response = await fetch(`/settings/edit-profile`, {
+        method: "GET",
+    });
+
+    if (response.ok) {
+        // document.location.replace("/settings/edit-profile");
+        window.location.href = "/settings/edit-profile";
+    } else {
+        alert(response.statusText);
+    }
+})
 
 async function followUser(elementButton) {
     elementButton.innerText = "Unfollow";
@@ -78,7 +91,7 @@ async function followUser(elementButton) {
     elementButton.classList.add("btn-danger");
     elementButton.id = "unfollow_button";
 
-    followButton.disabled = true;
+    elementButton.disabled = true;
 
     const url = window.location.href;
     const userId = url.substring(url.lastIndexOf("/") + 1);
@@ -89,7 +102,7 @@ async function followUser(elementButton) {
         },
     });
 
-    followButton.disabled = false;
+    elementButton.disabled = false;
 }
 
 async function removeFollow(elementButton) {

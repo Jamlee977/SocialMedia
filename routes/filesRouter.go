@@ -118,6 +118,35 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, path.Join("public", "auth", "login.html"))
 }
 
+func EditProfileHandler(w http.ResponseWriter, r *http.Request) {
+    if !isUserLoggedIn(w, r) {
+        http.Redirect(w, r, "/login", http.StatusFound)
+        return
+    }
+
+    type User struct {
+        Email string
+        FirstName string
+        LastName string
+    }
+
+    session, _ := globals.LoginCookie.Get(r, "login")
+    email := session.Values["email"].(string)
+    firstName := session.Values["firstName"].(string)
+    lastName := session.Values["lastName"].(string)
+    user := User {
+        Email: email,
+        FirstName: firstName,
+        LastName: lastName,
+    }
+
+    template := template.Must(template.ParseFiles(path.Join("public", "editProfile", "edit-profile.html")))
+    err := template.Execute(w, user)
+    if err != nil {
+        log.Println(err)
+    }
+}
+
 func isUserLoggedIn(w http.ResponseWriter, r *http.Request) bool {
     session, _ := globals.LoginCookie.Get(r, "login")
 

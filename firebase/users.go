@@ -23,6 +23,9 @@ type AccountRepository interface {
     RemoveFollower(followerId string, followingId string) error
     GetDocumentIdByUuid(uuid string) (string, error)
     IsFollowing(firstUuid string, secondUuid string) (bool, error)
+    UpdateEmail(docId string, email string) error
+    UpdateFirstName(docId string, firstName string) error
+    UpdateLastName(docId string, lastName string) error
 }
 
 type Account struct{}
@@ -314,7 +317,74 @@ func (*Account) IsFollowing(firstUuid string, secondUuid string) (bool, error) {
     return false, nil
 }
 
+func (*Account) UpdateEmail(docId, email string) error {
+    ctx := context.Background()
+    client, err := getFirebaseUserClient(ctx)
+    if err != nil {
+        log.Fatalf("Failed to create client: %v", err)
+        return err
+    }
+    defer client.Close()
 
+    accountRef := client.Collection(globals.UsersCollectionName).Doc(docId)
+
+    _, err = accountRef.Update(ctx, []firestore.Update{
+        {Path: "Email", Value: email},
+    })
+
+    if err != nil {
+        log.Fatalf("Failed updating user: %v", err)
+        return err
+    }
+
+    return nil
+}
+
+func (*Account) UpdateFirstName(docId, firstName string) error {
+    ctx := context.Background()
+    client, err := getFirebaseUserClient(ctx)
+    if err != nil {
+        log.Fatalf("Failed to create client: %v", err)
+        return err
+    }
+    defer client.Close()
+
+    accountRef := client.Collection(globals.UsersCollectionName).Doc(docId)
+
+    _, err = accountRef.Update(ctx, []firestore.Update{
+        {Path: "FirstName", Value: firstName},
+    })
+
+    if err != nil {
+        log.Fatalf("Failed updating user: %v", err)
+        return err
+    }
+
+    return nil
+}
+
+func (*Account) UpdateLastName(docId, lastName string) error {
+    ctx := context.Background()
+    client, err := getFirebaseUserClient(ctx)
+    if err != nil {
+        log.Fatalf("Failed to create client: %v", err)
+        return err
+    }
+    defer client.Close()
+
+    accountRef := client.Collection(globals.UsersCollectionName).Doc(docId)
+
+    _, err = accountRef.Update(ctx, []firestore.Update{
+        {Path: "LastName", Value: lastName},
+    })
+
+    if err != nil {
+        log.Fatalf("Failed updating user: %v", err)
+        return err
+    }
+
+    return nil
+}
 
 func getDocumentIdByUuid(uuid string) (string, error) {
     ctx := context.Background()

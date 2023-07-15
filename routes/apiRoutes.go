@@ -20,6 +20,68 @@ type profileDetails struct {
     Id string `json:"id"`
 }
 
+func EditProfile(w http.ResponseWriter, r *http.Request) {
+    email := r.FormValue("email")
+    firstName := r.FormValue("first_name")
+    lastName := r.FormValue("last_name")
+
+    if !globals.ValidateEmail(email) {
+        http.Error(w, "Invalid email", http.StatusBadRequest)
+        return
+    }
+
+    session, _ := globals.LoginCookie.Get(r, "login")
+    sessionEmail := session.Values["email"].(string)
+    sessionFirstName := session.Values["firstName"].(string)
+    sessionLastName := session.Values["lastName"].(string)
+    sessionUuid := session.Values["id"].(string)
+
+    hasEmailChanged := sessionEmail != email
+    hasFirstNameChanged := sessionFirstName != firstName
+    hasLastNameChanged := sessionLastName != lastName
+
+    var account firebase.AccountRepository = &firebase.Account{}
+
+    docId, err := account.GetDocumentIdByUuid(sessionUuid)
+    if err != nil {
+        http.Error(w, err.Error(), http.StatusBadRequest)
+        return
+    }
+
+    if hasEmailChanged {
+        err := account.UpdateEmail(docId, email)
+        if err != nil {
+            http.Error(w, err.Error(), http.StatusBadRequest)
+            return
+        }
+    }
+
+    if hasFirstNameChanged {
+        err := account.UpdateFirstName(docId, firstName)
+        if err != nil {
+            http.Error(w, err.Error(), http.StatusBadRequest)
+            return
+        }
+    }
+
+    if hasLastNameChanged {
+        err := account.UpdateLastName(docId, lastName)
+        if err != nil {
+            http.Error(w, err.Error(), http.StatusBadRequest)
+            return
+        }
+    }
+
+    if hasEmailChanged || hasFirstNameChanged || hasLastNameChanged {
+        session.Values["email"] = email
+        session.Values["firstName"] = firstName
+        session.Values["lastName"] = lastName
+        session.Save(r, w)
+    }
+
+    http.Redirect(w, r, "/media", http.StatusSeeOther)
+}
+
 func FollowUser(w http.ResponseWriter, r *http.Request) {
     parts := strings.Split(r.URL.Path, "/")
     userId := parts[len(parts)-2]
